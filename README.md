@@ -1,90 +1,150 @@
-# 🕵️‍♂️ Ethereum Forensics & Analytics Suite
+# 🕵️‍♂️ Ethereum Forensics: Advanced EVM Analysis Engine
 
 ![Visitor Count](https://visitor-badge.laobi.icu/badge?page_id=ArgaAAL.Ethereum-Forensics)
 
-> **A professional Ethereum analytics and forensic framework for account-based blockchain monitoring. It reconstructs transaction graphs, profiles gas usage, internal calls, and token interactions.**
+> **A forensic-grade analytics pipeline designed to characterize, trace, and classify transactional behavior across the Ethereum Execution Layer.**  
+> Uses multi-source ETL, internal-call decomposition, live pricing, and ML-based heuristics to identify anomalous behavior across EOAs, smart contracts, and routing contracts.
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Etherscan API](https://img.shields.io/badge/RPC-Etherscan-blue)](https://etherscan.io/apis)
-[![XGBoost](https://img.shields.io/badge/AI-XGBoost-green)](https://xgboost.readthedocs.io/)
-[![ONNX](https://img.shields.io/badge/Deploy-ONNX-purple)](https://onnx.ai/)
+[![ONNX](https://img.shields.io/badge/Runtime-ONNX-purple)](https://onnx.ai/)
 
 ---
 
-## ⚡ Executive Summary
+## ⚡ Overview
 
-Ethereum forensic analysis is challenging due to account-based abstraction and smart contract complexity. This framework:
+Ethereum’s account-based model introduces unique forensic challenges:
 
-* **Profiles address behavior**: contract interactions, ERC20/ERC721 activity, cross-chain bridge usage.  
-* **Tracks rapid fund movements** and internal message calls.  
-* **Implements ML detection** for anomalous or suspicious patterns.  
+- Contract mediation obscures ownership trails.
+- Internal transactions (CALL/DELEGATECALL) enable deeply nested fund routing.
+- On-chain liquidity protocols allow instant asset liquidation.
+- Gas markets reveal intent but are non-linear and highly contextual.
+
+This engine consolidates these complexities into a cohesive forensic workflow.  
+The system is optimized for **high-volume address profiling**, **model retraining**, and **graph-aware behavioral analysis**.
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    RPC[Etherscan/Infura RPC] -->|Raw Blocks| Ingest[Ingestion Engine]
-    Price[CryptoCompare Oracle] -->|Spot Rates| Ingest
+    RPC[Etherscan RPC] -->|Raw Blocks / Transactions| Ingest[Ingestion Engine]
+    Oracle[CryptoCompare Oracle] -->|USD Valuations| Ingest
     
-    subgraph "Layer 1: Data Decomposition"
-        Ingest --> ERC20[ERC20 Token Parser]
-        Ingest --> Internal[Internal Tx Tracer]
-        Ingest --> Gas[Gas & Nonce Profiler]
+    subgraph L1 [Layer 1: Data Decomposition]
+        Ingest --> ERC20[ERC20 Token Analyzer]
+        Ingest --> InternalTx[Internal Call Tracer]
+        Ingest --> GasProfiler[Gas & Nonce Profiler]
     end
     
-    subgraph "Layer 2: Feature Synthesis"
-        ERC20 & Internal & Gas --> Vector[Feature Vector Builder]
+    subgraph L2 [Layer 2: Feature Encoding]
+        ERC20 --> FeatureBuilder
+        InternalTx --> FeatureBuilder
+        GasProfiler --> FeatureBuilder
     end
-    
-    subgraph "Layer 3: Classification"
-        Vector --> XGB[XGBoost Classifier]
-        Vector --> ONNX[ONNX Runtime (Production)]
-    end
-    
-    XGB --> Risk["Risk Score (0.0 - 1.0)"]
-```
+
+    FeatureBuilder --> XGB[XGBoost Model]
+    FeatureBuilder --> ONNXRuntime[ONNX Runtime]
+
+    XGB --> Score["Risk Score (0.0–1.0)"]
+    ONNXRuntime --> Score
+````
 
 ---
 
-## 🧩 Core Modules
+## 🧩 Components
 
-### 1\. ETL Pipeline (`src/core/etl_pipeline.py`)
-Normalizes raw EVM data, parses internal messages, and profiles ERC20/ERC721 token transfers.
+### **1. ETL Engine — `src/core/etl_pipeline.py`**
 
-### 2\. Token Analyzer (`src/core/token_analyzer.py`)
-Analyzes contract calls, approvals, and liquidity events to detect suspicious patterns.
+Handles RPC ingestion, aggregation, and normalization.
 
-### 3\. ML Models (`src/models/xgboost_trainer.py` & `src/models/onnx_exporter.py`)
-Gradient Boosting model trained on known on-chain patterns; ONNX export enables low-latency deployment.
+Key Abilities:
+
+* Differentiates EOAs, proxies, routers, and vault contracts.
+* Extracts and resolves internal message calls.
+* Identifies gas spikes, frontrunning signatures, and automated routing patterns.
+* Reconstructs chronological transfer flows using a temporal graph.
 
 ---
 
-## 🛠️ Installation & Setup
+### **2. Token Analysis Engine — `src/core/token_analyzer.py`**
+
+Specialized for ERC-20/ERC-721 patterns.
+
+Detects:
+
+* Approval surges (common pre-drain signatures).
+* LP token mint/burn activity.
+* Concentrated token exits via AMMs (indicative of liquidation phases).
+* “Hidden transfers” routed through wrappers and nested proxy calls.
+
+---
+
+### **3. Internal Transaction Tracer — `src/utils/data_processor.py`**
+
+Interprets CALL, STATICCALL, and DELEGATECALL chains.
+
+Capabilities:
+
+* Expands the transaction execution tree.
+* Normalizes nested transfers into human-readable flows.
+* Captures delegated execution where the parent address masks the true operator.
+
+---
+
+### **4. ML Model + Deployment — `src/models/xgboost_trainer.py`**
+
+Gradient-boosted classifier for behavior scoring.
+
+Features:
+
+* Time-based activity patterns
+* Contract interaction entropy
+* Token flow irregularity
+* Gas/nonce distribution variance
+* Deviation from normative account behavior
+
+Exports to ONNX for real-time deployment (<10ms inference).
+
+---
+
+## 🛠️ Setup
 
 ```bash
 git clone https://github.com/ArgaAAL/Ethereum-Forensics.git
 cd Ethereum-Forensics
+
 pip install -r requirements.txt
+
 cp .env.example .env
-# Add your ETHERSCAN_API_KEY and CRYPTOCOMPARE_API_KEY
+# Add your API keys
 ```
 
 ---
 
 ## 🚀 Usage
 
-Run the ETL pipeline for an address:
+### **Profile an Address**
 
 ```bash
-python src/core/etl_pipeline.py --address 0x123...
+python src/core/etl_pipeline.py --address 0xABC...
 ```
 
-Retrain the model:
+Generated output includes:
+
+* Behavioral descriptors
+* ERC-20/721 asset flows
+* Nested internal transfer graph
+* Synthetic risk score
+* Time-weighted USD valuations
+
+---
+
+### **Retrain the Model**
 
 ```bash
-python src/models/xgboost_trainer.py --data new_labels.csv
+python src/models/xgboost_trainer.py --data training_dataset.csv
 ```
 
 ---
@@ -93,4 +153,18 @@ python src/models/xgboost_trainer.py --data new_labels.csv
 
 MIT License.
 
-*Part of the **Crypto-Threat-Intelligence** suite.*
+---
+
+## 📚 Additional Notes
+
+This project is part of a broader research effort into **EVM-based transactional intelligence**, focusing on:
+
+* Temporal behavior modeling
+* Contract interaction profiling
+* Dynamic fund-flow reconstruction
+* Low-latency risk classification for streaming pipelines
+* Multi-chain extension pathways (planned)
+
+The repository structure, documentation style, and ML export format are optimized for security teams, quant researchers, and forensic analysts working with high-throughput on-chain data.
+
+---
